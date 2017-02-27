@@ -25,7 +25,7 @@ print("* Building model and compiling functions...")
 state_var = T.matrix('state')
 action_var = T.ivector('action')
 
-network = utils.build_custom_mlp(n_features, n_action, state_var, depth=1, width=5, drop_input=0.0, drop_hidden=0.0)
+network = utils.build_custom_mlp(n_features, n_action, state_var, depth=5, width=20, drop_input=0.0, drop_hidden=0.0)
 policy = lasagne.layers.get_output(network)
 
 action_one_hot = T.extra_ops.to_one_hot(action_var, n_action, dtype='int32')
@@ -136,14 +136,12 @@ for i in range(10000000):
             #print('action: {}'.format(action))
         previous_obs = observation
         observation, reward, bDone, info = env.step(action)
-        if(policy.max() > 0.9):
-            print('policy: {}'.format(policy))
+        #if(policy.max() > 0.9):
+            #print('policy: {}'.format(policy))
         previous_state = state
         state = numpy.concatenate((observation,previous_obs))
         state_mean = 0.99*state_mean + 0.01*0
         #state = observation - state_mean
-        if bDone:
-            reward -= 10
         episode_reward += reward
         
         # FeedBack
@@ -153,29 +151,27 @@ for i in range(10000000):
         log_policy_action = func(w_t.astype('float32'), *train_data)
         dlogPdw = fprime(w_t.astype('float32') , *train_data)
         cum_log_probability_gradient += dlogPdw
-        cum_gradient += (gamma**step)*reward*cum_log_probability_gradient
+        cum_gradient = (gamma**step)*episode_reward*cum_log_probability_gradient
         
         if bDone:
+            # Parameters update
+            g_t = cum_gradient
+            m_t = m_r*m_t + g_t*l_r
+            dw_t  = m_r*m_t + g_t*l_r
+            w2 = w_t + dw_t
+            params_updater(w2.astype('float32'))
+            policy2 = output_model(previous_state.reshape(1, n_features))
+            policy_action_diff = policy2[0][action] - policy[0][action]
+            #print('policy_action_diff: {}'.format(policy_action_diff))
+            #if(policy_action_diff >= 0):
+            w_t = w_t + dw_t
+            print('dw_t: {}, \t'.format(abs(dw_t).mean()))
+            #print('cum_gradient: {}, \t'.format(abs(cum_gradient).mean()))
+            cum_gradient = 0
             break
     
-    # Parameters update
-    if((i % freq) == 0):
-        g_t = cum_gradient
-        m_t = m_r*m_t + g_t*l_r
-        dw_t  = m_r*m_t + g_t*l_r
-        w2 = w_t + dw_t
-        params_updater(w2.astype('float32'))
-        policy2 = output_model(previous_state.reshape(1, n_features))
-        policy_action_diff = policy2[0][action] - policy[0][action]
-        print('policy_action_diff: {}'.format(policy_action_diff))
-        #if(policy_action_diff >= 0):
-        w_t = w_t + dw_t
-        print('dw_t: {}, \t'.format(abs(dw_t).mean()))
-        print('cum_gradient: {}, \t'.format(abs(cum_gradient).mean()))
-        cum_gradient = 0
-    
     reward_mean = 0.99*reward_mean + 0.01*episode_reward
-    print('episode_reward: {}'.format(episode_reward))
+    #print('episode_reward: {}'.format(episode_reward))
     print('reward_mean: {}'.format(reward_mean))
-    corrected_reward = (episode_reward - reward_mean)
-    print('corrected_reward: {}'.format(corrected_reward))
+    #corrected_reward = (episode_reward - reward_mean)
+    #print('corrected_reward: {}'.format(corrected_reward))
