@@ -5,10 +5,17 @@ import theano
 import lasagne
 import numpy
 
-env = gym.make('CartPole-v0')
+#env = gym.make('CartPole-v0')
+#env = gym.make('Pendulum-v0')
+env = gym.make('Breakout-v0')
+
 print('Action space: {}'.format(env.action_space))
 print('Observation space: {}'.format(env.observation_space))
-n_features = env.observation_space.shape[0]
+n1 = env.observation_space.shape[0]
+n2 = env.observation_space.shape[1]
+n3 = env.observation_space.shape[2]
+n_features = n1*n2*n3*2
+#n_action = env.action_space.shape[0]
 n_action = env.action_space.n
 print('n_features: {}'.format(n_features))
 
@@ -99,7 +106,8 @@ for i in range(10000000):
     cum_gradient = 0
     for trial in range(n_trials):
         observation = env.reset()
-        state = observation
+        #state = observation
+        state = numpy.concatenate((observation,  observation))
         episode_reward = 0
         cum_log_probability_gradient = 0
         for step in range(1000000):
@@ -108,12 +116,14 @@ for i in range(10000000):
             # FeedForward
             policy = output_model(state.reshape(1, n_features))
             prev_state = state
+            prev_observation = observation
             if(numpy.random.rand() < rand_prob):
                 action = numpy.random.randint(n_action)
             else:
                 action = numpy.random.choice(n_action, 1, p=policy[0])[0]
             observation, reward, bDone, info = env.step(action)
-            state = observation
+            #state = observation
+            state = numpy.concatenate((prev_observation,  observation))
             episode_reward += reward
             # FeedBack
             action_aux = numpy.zeros(1)
